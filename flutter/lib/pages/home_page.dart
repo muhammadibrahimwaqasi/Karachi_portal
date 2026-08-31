@@ -5,7 +5,9 @@ import 'package:hijri/digits_converter.dart';
 import '../services/auth_service.dart';
 import '../services/complaint_service.dart';
 import '../services/notification_service.dart';
+import '../services/cache_service.dart';
 import '../widgets/shared_widgets.dart';
+import '../widgets/offline_banner.dart';
 import 'my_complaints_page.dart';
 import 'price_list_page.dart';
 import 'notifications_page.dart';
@@ -20,7 +22,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
-  int _notifCount = 3;
+  int _notifCount = 0;
+  bool _isOffline = false;
   Map<String, dynamic>? _user;
   Map<String, dynamic> _stats = {
     'total': 0,
@@ -47,29 +50,56 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
+    bool offline = false;
     try {
       _user = await AuthService.getCurrentUser();
+
       final statsRes = await ComplaintService.getDashboardStats();
       final notifRes = await NotificationService.getUnreadCount();
       final recentRes = await ComplaintService.getMyComplaints(page: 1);
 
-      if (mounted) {
-        setState(() {
-          if (statsRes['success'] == true) {
-            _stats = Map<String, dynamic>.from(statsRes['data'] ?? _stats);
-          }
-          if (notifRes['success'] == true) {
-            _notifCount = notifRes['count'] ?? 0;
-          }
-          if (recentRes['success'] == true) {
-            final list = recentRes['data']?['data'] ?? [];
-            _recentComplaints = List<Map<String, dynamic>>.from(
-                list.take(3).map((e) => Map<String, dynamic>.from(e)));
-          }
-        });
+      if (statsRes['success'] == true) {
+        _stats = Map<String, dynamic>.from(statsRes['data'] ?? _stats);
+        await CacheService.save('cache_dashboard_stats', _stats);
+      } else {
+        final cached = await CacheService.load('cache_dashboard_stats');
+        if (cached != null) _stats = Map<String, dynamic>.from(cached);
+        offline = true;
       }
-    } catch (_) {}
-    if (mounted) setState(() => _loading = false);
+
+      if (notifRes['success'] == true) {
+        _notifCount = notifRes['count'] ?? 0;
+        await CacheService.save('cache_notif_count', _notifCount);
+      } else {
+        final cached = await CacheService.load('cache_notif_count');
+        if (cached != null) {
+          _notifCount =
+              cached is int ? cached : int.tryParse(cached.toString()) ?? 0;
+        }
+        offline = true;
+      }
+
+      if (recentRes['success'] == true) {
+        final list = recentRes['data']?['data'] ?? [];
+        _recentComplaints = List<Map<String, dynamic>>.from(
+            list.take(3).map((e) => Map<String, dynamic>.from(e)));
+        await CacheService.save('cache_recent_complaints', _recentComplaints);
+      } else {
+        final cached = await CacheService.load('cache_recent_complaints');
+        if (cached != null) {
+          _recentComplaints = List<Map<String, dynamic>>.from(cached);
+        }
+        offline = true;
+      }
+    } catch (_) {
+      offline = true;
+    }
+    if (mounted) {
+      setState(() {
+        _isOffline = offline;
+        _loading = false;
+      });
+    }
   }
 
   void _onNavTap(int index) {
@@ -106,42 +136,49 @@ class _HomePageState extends State<HomePage> {
   //  DASHBOARD BODY
   // ─────────────────────────────────────────────
   Widget _dashboardBody() {
-    return RefreshIndicator(
-      color: kPrimaryGreen,
-      onRefresh: _loadData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: 16),
-            _welcomeCard(),
-            SizedBox(height: 8),
-            SectionHeader(
-              title: 'Quick Access',
-              titleUrdu: 'فوری رسائی',
-              actionLabel: 'View All / تمام دیکھیں',
-              onAction: () {},
+    return Column(
+      children: [
+        OfflineBanner(isOffline: _isOffline),
+        Expanded(
+          child: RefreshIndicator(
+            color: kPrimaryGreen,
+            onRefresh: _loadData,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: 16),
+                  _welcomeCard(),
+                  SizedBox(height: 8),
+                  SectionHeader(
+                    title: 'Quick Access',
+                    titleUrdu: 'فوری رسائی',
+                    actionLabel: 'View All / تمام دیکھیں',
+                    onAction: () {},
+                  ),
+                  _quickAccessGrid(),
+                  SizedBox(height: 4),
+                  const SectionHeader(
+                    title: 'Dashboard Overview',
+                    titleUrdu: 'خلاصہ جائزہ',
+                  ),
+                  _statsRow(),
+                  SizedBox(height: 4),
+                  SectionHeader(
+                    title: 'Recent Complaints',
+                    titleUrdu: 'حالیہ شکایات',
+                    actionLabel: 'View All / تمام دیکھیں',
+                    onAction: () => setState(() => _currentIndex = 1),
+                  ),
+                  _recentComplaintsList(),
+                  SizedBox(height: 20),
+                ],
+              ),
             ),
-            _quickAccessGrid(),
-            SizedBox(height: 4),
-            const SectionHeader(
-              title: 'Dashboard Overview',
-              titleUrdu: 'خلاصہ جائزہ',
-            ),
-            _statsRow(),
-            SizedBox(height: 4),
-            SectionHeader(
-              title: 'Recent Complaints',
-              titleUrdu: 'حالیہ شکایات',
-              actionLabel: 'View All / تمام دیکھیں',
-              onAction: () => setState(() => _currentIndex = 1),
-            ),
-            _recentComplaintsList(),
-            SizedBox(height: 20),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

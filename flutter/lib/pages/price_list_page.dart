@@ -53,19 +53,27 @@ class _PriceListPageState extends State<PriceListPage> {
   @override
   void initState() {
     super.initState();
-    _buildIconMapFromFallback();
     _loadCategories();
     _loadPrices();
   }
 
-  void _buildIconMapFromFallback() {
-    _categoryIconMap = {};
-    for (var c in _fallbackCategories) {
-      _categoryIconMap[c['slug'] as String] = c['icon'] as String? ?? '📦';
-    }
-  }
-
   Future<void> _loadCategories() async {
+    // Show last-known REAL data (from cache) immediately if we have any,
+    // instead of the hardcoded _fallbackCategories list — the hardcoded
+    // list can never reflect admin-panel changes/deletions, so showing it
+    // even briefly means a deleted/changed icon can flash back on every
+    // launch. Cache always reflects what was actually last fetched.
+    final cachedFirst = await CacheService.load('cache_categories');
+    if (cachedFirst != null && mounted) {
+      final data = List<Map<String, dynamic>>.from(cachedFirst);
+      setState(() {
+        _categories = data;
+        _categoryIconMap = {
+          for (var c in data) (c['slug'] ?? '') as String: c['icon'] ?? '📦'
+        };
+      });
+    }
+
     final res = await PriceService.getCategories();
     if (res['success'] == true && mounted) {
       final data = List<Map<String, dynamic>>.from(res['data'] ?? []);
@@ -73,57 +81,80 @@ class _PriceListPageState extends State<PriceListPage> {
       setState(() {
         _isOffline = false;
         _categories = data;
-        _categoryIconMap = {};
-        for (var c in data) {
-          _categoryIconMap[c['slug'] ?? ''] = c['icon'] ?? '📦';
-        }
+        _categoryIconMap = {
+          for (var c in data) (c['slug'] ?? '') as String: c['icon'] ?? '📦'
+        };
       });
     } else if (mounted) {
-      final cached = await CacheService.load('cache_categories');
-      if (cached != null) {
-        final data = List<Map<String, dynamic>>.from(cached);
+      if (cachedFirst == null) {
+        // Truly nothing available (first-ever launch, no internet) —
+        // hardcoded placeholder is the only option left.
         setState(() {
           _isOffline = true;
-          _categories = data;
-          _categoryIconMap = {};
-          for (var c in data) {
-            _categoryIconMap[c['slug'] ?? ''] = c['icon'] ?? '📦';
-          }
+          _categories = _fallbackCategories;
+          _categoryIconMap = {
+            for (var c in _fallbackCategories)
+              c['slug'] as String: c['icon'] as String? ?? '📦'
+          };
         });
       } else {
-        setState(() => _categories = _fallbackCategories);
+        setState(() => _isOffline = true);
       }
     }
   }
 
   Future<void> _loadPrices({String? search}) async {
     setState(() => _loading = true);
-    final res = await PriceService.getPriceList(
-      category: _selectedCategory == 'all' ? null : _selectedCategory,
-      search: search,
-    );
-    if (mounted) {
+    final cacheKey = 'cache_prices_${_selectedCategory}';
+
+    List<Map<String, dynamic>> allItems = [];
+    bool anySuccess = false;
+    String? lastUpdated;
+    int page = 1;
+    int lastPage = 1;
+
+    // Fetch every page for this category (not just page 1) so "All Items"
+    // and large categories (Vegetables, Fruits, ...) show their full list.
+    while (page <= lastPage && page <= 50) {
+      final res = await PriceService.getPriceList(
+        category: _selectedCategory == 'all' ? null : _selectedCategory,
+        search: search,
+        page: page,
+      );
+      if (res['success'] != true) break;
+      anySuccess = true;
+      final data = res['data'];
+      final pageItems = List<Map<String, dynamic>>.from(
+          data is Map ? (data['data'] ?? []) : (data ?? []));
+      allItems.addAll(pageItems);
+      lastUpdated ??= res['last_updated'];
+      if (data is Map && data['last_page'] != null) {
+        lastPage = int.tryParse(data['last_page'].toString()) ?? page;
+      } else {
+        lastPage = page;
+      }
+      page++;
+    }
+
+    if (!mounted) return;
+    if (anySuccess) {
+      await CacheService.save(cacheKey, allItems);
       setState(() {
-        if (res['success'] == true) {
-          final items = List<Map<String, dynamic>>.from(
-              res['data']?['data'] ?? res['data'] ?? []);
-          CacheService.save('cache_prices_all', items);
-          _items = items;
-          _isOffline = false;
-          _lastUpdated = res['last_updated'] ?? DateFormat('d MMM yyyy, hh:mm a').format(DateTime.now());
-        }
+        _items = allItems;
+        _isOffline = false;
+        _lastUpdated = lastUpdated ??
+            DateFormat('d MMM yyyy, hh:mm a').format(DateTime.now());
         _loading = false;
       });
-    }
-    if (!res['success'] && mounted) {
-      final cached = await CacheService.load('cache_prices_all');
+    } else {
+      final cached = await CacheService.load(cacheKey);
       if (cached != null && mounted) {
         setState(() {
           _items = List<Map<String, dynamic>>.from(cached);
           _isOffline = true;
           _loading = false;
         });
-      } else {
+      } else if (mounted) {
         setState(() => _loading = false);
       }
     }
@@ -350,10 +381,23 @@ class _PriceListPageState extends State<PriceListPage> {
       return ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Image.network(s, width: 28, height: 28, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Text('📦', style: TextStyle(fontSize: 20))),
+          errorBuilder: (_, __, ___) => _catIconFallback('📦')),
       );
     }
-    return Text(s.isEmpty ? '📦' : s, style: TextStyle(fontSize: 20));
+    return _catIconFallback(s.isEmpty ? '📦' : s);
+  }
+
+  // Fixed 28x28 footprint for every icon variant (real emoji, missing/fallback
+  // box icon) so the chip never resizes depending on which one is showing.
+  Widget _catIconFallback(String icon) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Text(icon, style: TextStyle(fontSize: 20)),
+      ),
+    );
   }
 
   Widget _buildCategories() {

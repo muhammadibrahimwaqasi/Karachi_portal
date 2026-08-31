@@ -147,37 +147,40 @@ class KarachiBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 72,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 12,
-              offset: Offset(0, -2)),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _navItem(context, 0, Icons.dashboard_outlined, Icons.dashboard,
-              'Dashboard', 'ڈیش بورڈ'),
-          _navItem(context, 1, Icons.report_problem_outlined,
-              Icons.report_problem, 'Complaint', 'شکایت کریں'),
-          _centerElevatedButton(
-              context, 2, Icons.label, 'Price List', 'قیمت فہرست'),
-          _navItemWithBadge(
-              context,
-              3,
-              Icons.notifications_outlined,
-              Icons.notifications,
-              'Notifications',
-              'اطلاعات',
-              notificationCount),
-          _navItem(context, 4, Icons.person_outline, Icons.person, 'Profile',
-              'پروفائل'),
-        ],
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: Offset(0, -2)),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _navItem(context, 0, Icons.dashboard_outlined, Icons.dashboard,
+                'Dashboard', 'ڈیش بورڈ'),
+            _navItem(context, 1, Icons.report_problem_outlined,
+                Icons.report_problem, 'Complaint', 'شکایت کریں'),
+            _centerElevatedButton(
+                context, 2, Icons.label, 'Price List', 'قیمت فہرست'),
+            _navItemWithBadge(
+                context,
+                3,
+                Icons.notifications_outlined,
+                Icons.notifications,
+                'Notifications',
+                'اطلاعات',
+                notificationCount),
+            _navItem(context, 4, Icons.person_outline, Icons.person,
+                'Profile', 'پروفائل'),
+          ],
+        ),
       ),
     );
   }
