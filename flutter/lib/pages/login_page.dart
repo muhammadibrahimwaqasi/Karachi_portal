@@ -86,14 +86,30 @@ class _LoginPageState extends State<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Username field
-                        _buildBilingualLabel('Username', 'صارف کا نام'),
+                        _buildBilingualLabel(
+                            'CNIC / Phone Number', 'شناختی کارڈ / فون نمبر'),
                         SizedBox(height: 8),
                         _buildTextField(
                           controller: _usernameController,
-                          hint: 'Enter your username / صارف کام درج کریں',
-                          prefixIcon: Icons.person_outline,
-                          validator: (v) =>
-                              v!.isEmpty ? 'Username درج کریں' : null,
+                          hint:
+                              'Enter CNIC or Phone Number / شناختی کارڈ یا فون نمبر درج کریں',
+                          prefixIcon: Icons.badge_outlined,
+                          validator: (v) => v!.isEmpty
+                              ? 'CNIC یا فون نمبر درج کریں'
+                              : null,
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Use your CNIC (with or without dashes) or registered phone number',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                        Text(
+                          'اپنا شناختی کارڈ (ڈیش کے ساتھ یا بغیر)  یا  رجسٹرڈ فون نمبر درج کریں',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                              fontFamily: 'NotoNastaliqUrdu'),
                         ),
                         SizedBox(height: 16),
 
@@ -277,7 +293,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         SizedBox(height: 16),
 
-                        // ── Browse as Guest button ──
+                        // ── Browse as Guest butto0n ──
                         SizedBox(
                           width: double.infinity,
                           height: 44,

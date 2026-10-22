@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+// import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // ── Auto-detect: Android emulator → 10.0.2.2, else → 127.0.0.1 ──
   static String get baseUrl {
-  return 'https://karachiportal-production.up.railway.app/api';
+  return 'https://karachi-portal-production.up.railway.app/api';
 }
   static String? _token;
 
